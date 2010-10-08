@@ -67,7 +67,7 @@ import Data.ByteString.UTF8 (toString)
 import Data.ByteString.Lazy.UTF8 (fromString)
 import Data.Maybe (fromJust)
 import Data.List (intercalate, isPrefixOf, isInfixOf)
-import System.FilePath ((<.>), takeExtension, takeFileName)
+import System.FilePath ((<.>), takeExtension, takeFileName, (</>), splitDirectories, joinPath)
 import Text.Highlighting.Kate
 import Text.ParserCombinators.Parsec
 import Network.URL (decString, encString)
@@ -344,8 +344,39 @@ withInput name val handler = do
 -- | Returns a filestore object derived from the
 -- repository path and filestore type specified in configuration.
 filestoreFromConfig :: Config -> FileStore
-filestoreFromConfig conf =
-  case repositoryType conf of
+filestoreFromConfig conf = subdirectoryFileStore baseFs $ repositorySubdir conf
+  where baseFs = case repositoryType conf of
          Git       -> gitFileStore       $ repositoryPath conf
          Darcs     -> darcsFileStore     $ repositoryPath conf
          Mercurial -> mercurialFileStore $ repositoryPath conf
+
+-- | Converts a filestore to a filestore that only operates within
+-- a subdirectory
+subdirectoryFileStore :: FileStore -> FilePath -> FileStore
+subdirectoryFileStore fs subdir = fs {
+    save = save'
+  , retrieve = retrieve'
+  , delete = delete'
+  , rename = rename'
+  , history = history'
+  , latest = latest'
+  , index = index'
+  , directory = directory'
+  , search = search'
+  } where
+    save' path = save fs $ subdir </> path
+    retrieve' path = retrieve fs $ subdir </> path
+    delete' path = delete fs $ subdir </> path
+    rename' from to = (rename fs) (subdir </> from) (subdir </> to)
+    history' paths = history fs $ map (subdir </>) paths
+    latest' path = latest fs $ subdir </> path
+    index' = do
+        paths <- index fs
+        return $ map trimSubdir $ filter inSubdir paths
+    directory' path = directory fs $ subdir </> path
+    search' query = do
+        results <- search fs query
+        return $ map (\x -> x {matchResourceName = trimSubdir $ matchResourceName x}) $ filter (inSubdir.matchResourceName) results
+
+    inSubdir = ((== subdir).head.splitDirectories)
+    trimSubdir = (joinPath.tail.splitDirectories)

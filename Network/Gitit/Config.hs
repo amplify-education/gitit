@@ -63,6 +63,7 @@ extractConfig cp = do
   config' <- runErrorT $ do
       cfRepositoryType <- get cp "DEFAULT" "repository-type"
       cfRepositoryPath <- get cp "DEFAULT" "repository-path"
+      cfRepositorySubdirectory <- get cp "DEFAULT" "repository-subdirectory"
       cfDefaultPageType <- get cp "DEFAULT" "default-page-type"
       cfMathMethod <- get cp "DEFAULT" "math"
       cfShowLHSBirdTracks <- get cp "DEFAULT" "show-lhs-bird-tracks"
@@ -118,6 +119,7 @@ extractConfig cp = do
 
       return $! Config{
           repositoryPath       = cfRepositoryPath
+        , repositorySubdir     = cfRepositorySubdirectory
         , repositoryType       = repotype'
         , defaultPageType      = pt
         , mathMethod           = case map toLower cfMathMethod of

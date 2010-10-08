@@ -51,6 +51,8 @@ data MathMethod = MathML | JsMathScript | WebTeX String | RawTeX
 data Config = Config {
   -- | Path of repository containing filestore
   repositoryPath       :: FilePath,
+  -- | Subdirectory of the repository in which to store wiki data
+  repositorySubdir     :: FilePath,
   -- | Type of repository
   repositoryType       :: FileStoreType,
   -- | Default page markup type for this wiki
