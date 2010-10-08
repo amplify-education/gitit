@@ -136,7 +136,9 @@ data Config = Config {
   -- | Allow PDF export?
   pdfExport            :: Bool,
   -- | Directory to search for pandoc customizations
-  pandocUserData       :: Maybe FilePath
+  pandocUserData       :: Maybe FilePath,
+  -- | String to prefix to all commits made by gitit
+  commitPrefix         :: String
   }
 
 -- | Data for rendering a wiki page.

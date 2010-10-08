@@ -344,7 +344,10 @@ withInput name val handler = do
 -- | Returns a filestore object derived from the
 -- repository path and filestore type specified in configuration.
 filestoreFromConfig :: Config -> FileStore
-filestoreFromConfig conf = subdirectoryFileStore baseFs $ repositorySubdir conf
+filestoreFromConfig conf =
+  commitPrefixedFileStore (commitPrefix conf ++ " ")
+      $ subdirectoryFileStore (repositorySubdir conf)
+      $ baseFs
   where baseFs = case repositoryType conf of
          Git       -> gitFileStore       $ repositoryPath conf
          Darcs     -> darcsFileStore     $ repositoryPath conf
@@ -352,8 +355,8 @@ filestoreFromConfig conf = subdirectoryFileStore baseFs $ repositorySubdir conf
 
 -- | Converts a filestore to a filestore that only operates within
 -- a subdirectory
-subdirectoryFileStore :: FileStore -> FilePath -> FileStore
-subdirectoryFileStore fs subdir = fs {
+subdirectoryFileStore :: FilePath -> FileStore -> FileStore
+subdirectoryFileStore subdir fs = fs {
     save = save'
   , retrieve = retrieve'
   , delete = delete'
@@ -380,3 +383,13 @@ subdirectoryFileStore fs subdir = fs {
 
     inSubdir = ((== subdir).head.splitDirectories)
     trimSubdir = (joinPath.tail.splitDirectories)
+
+commitPrefixedFileStore :: String -> FileStore -> FileStore
+commitPrefixedFileStore prefix fs = fs {
+    save = save'
+  , delete = delete'
+  , rename = rename'
+  } where
+    save' path author msg = (save fs) path author (prefix ++ msg)
+    delete' path author msg = (delete fs) path author (prefix ++ msg)
+    rename' from to author msg = (rename fs) from to author (prefix ++ msg)
