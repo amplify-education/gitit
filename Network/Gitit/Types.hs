@@ -67,6 +67,8 @@ data Config = Config {
   withUser             :: Handler -> Handler,
   -- | Handler for login, logout, register, etc.
   authHandler          :: Handler,
+  -- | Function to authenticate users
+  authBackend          :: String -> String -> GititServerPart (Maybe User),
   -- | Path of users database
   userFile             :: FilePath,
   -- | Seconds of inactivity before session expires
@@ -138,7 +140,10 @@ data Config = Config {
   -- | Directory to search for pandoc customizations
   pandocUserData       :: Maybe FilePath,
   -- | String to prefix to all commits made by gitit
-  commitPrefix         :: String
+  commitPrefix         :: String,
+  -- | Automatically register a new user if they don't exist when
+  -- logging in?
+  autoRegister         :: Bool
   }
 
 -- | Data for rendering a wiki page.

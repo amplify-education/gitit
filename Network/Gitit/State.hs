@@ -67,15 +67,15 @@ genSalt = replicateM 32 $ randomRIO ('0','z')
 hashPassword :: String -> String -> String
 hashPassword salt pass = showDigest $ sha512 $ L.fromString $ salt ++ pass
 
-authUser :: String -> String -> GititServerPart Bool
-authUser name pass = do
+authUserLocal :: String -> String -> GititServerPart (Maybe User)
+authUserLocal name pass = do
   users' <- queryGititState users
   case M.lookup name users' of
        Just u  -> do
          let salt = pSalt $ uPassword u
          let hashed = pHashed $ uPassword u
-         return $ hashed == hashPassword salt pass
-       Nothing -> return False
+         return $ if hashed == hashPassword salt pass then Just u else Nothing
+       Nothing -> return Nothing
 
 isUser :: String -> GititServerPart Bool
 isUser name = liftM (M.member name) $ queryGititState users
@@ -105,7 +105,7 @@ writeUserFile conf = do
       "[" ++ intercalate "\n," (map show $ M.toList usrs) ++ "\n]"
 
 getUser :: String -> GititServerPart (Maybe User)
-getUser uname = liftM (M.lookup uname) $ queryGititState users
+getUser uname =  liftM (M.lookup uname) $ queryGititState users
 
 isSession :: MonadIO m => SessionKey -> m Bool
 isSession key = liftM (M.member key . unsession) $ queryGititState sessions

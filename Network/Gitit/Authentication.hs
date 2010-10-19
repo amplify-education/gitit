@@ -20,7 +20,9 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 {- Handlers for registering and authenticating users.
 -}
 
-module Network.Gitit.Authentication (formAuthHandlers, httpAuthHandlers, loginUserForm) where
+module Network.Gitit.Authentication (
+    formAuthHandlers, httpAuthHandlers, loginUserForm,
+    authUserLdap, registrationHandlers) where
 
 import Network.Gitit.State
 import Network.Gitit.Types
@@ -38,12 +40,19 @@ import System.Exit
 import System.Log.Logger (logM, Priority(..))
 import Data.Char (isAlphaNum, isAlpha, isAscii)
 import Text.Pandoc.Shared (substitute)
-import Data.Maybe (isJust, fromJust)
+import Data.Maybe (isJust, fromJust, listToMaybe)
 import Network.URL (encString, exportURL, add_param, importURL)
 import Network.BSD (getHostName)
 import qualified Text.StringTemplate as T
 import Network.HTTP (urlEncodeVars)
 import Codec.Binary.UTF8.String (encodeString) 
+import LDAP.Init
+import LDAP.Types
+import LDAP.Exceptions
+import LDAP.Search
+import Control.Monad
+import Data.Maybe
+import Debug.Trace
 
 data ValidationType = Register
                     | ResetPassword
@@ -109,13 +118,26 @@ resetPasswordRequest params = do
                       pgTitle = "Resetting your password"
                       }
                     response
-    else registerForm >>=
-         formattedPage defaultPageLayout{
-                         pgMessages = errors, 
-                         pgShowPageTools = False,
-                         pgTabs = [],
-                         pgTitle = "Register for an account"
-                         }
+    else registrationError errors
+
+registrationError :: [String] -> Handler
+registrationError errors = do
+    cfg <- getConfig
+    if autoRegister cfg
+        then (return noHtml) >>= formattedPage defaultPageLayout{
+                             pgMessages = errors, 
+                             pgShowPageTools = False,
+                             pgTabs = [],
+                             pgTitle = "Unknown User"
+                             }
+        else registerForm >>=
+             formattedPage defaultPageLayout{
+                             pgMessages = errors, 
+                             pgShowPageTools = False,
+                             pgTabs = [],
+                             pgTitle = "Register for an account"
+                             }
+
 
 resetLink :: String -> User -> String
 resetLink base' user =
@@ -158,13 +180,7 @@ validateReset params postValidate = do
                      (False, _)     -> ["User " ++ uname ++ " is not known"] 
   if null errors
      then postValidate (fromJust user)
-     else registerForm >>=
-          formattedPage defaultPageLayout{
-                          pgMessages = errors,
-                          pgShowPageTools = False,
-                          pgTabs = [],
-                          pgTitle = "Register for an account"
-                          }
+     else registrationError errors
 
 resetPassword :: Params -> Handler
 resetPassword params = validateReset params $ \user ->
@@ -333,10 +349,12 @@ loginForm dest = do
       , textfield "destination" ! [thestyle "display: none;", value dest]
       , submit "login" "Login" ! [intAttr "tabindex" 3]
       ] +++
-    p << [ stringToHtml "If you do not have an account, "
-         , anchor ! [href $ base' ++ "/_register?" ++
-           urlEncodeVars [("destination", encodeString dest)]] << "click here to get one."
-         ] +++
+    (if autoRegister cfg
+        then noHtml
+        else p << [ stringToHtml "If you do not have an account, "
+          , anchor ! [href $ base' ++ "/_register?" ++
+            urlEncodeVars [("destination", encodeString dest)]] << "click here to get one."
+          ]) +++
     if null (mailCommand cfg)
        then noHtml
        else p << [ stringToHtml "If you forgot your password, "
@@ -361,9 +379,13 @@ loginUser params = do
   let uname = pUsername params
   let pword = pPassword params
   let destination = pDestination params
-  allowed <- authUser uname pword
   cfg <- getConfig
-  if allowed
+  user <- (authBackend cfg) uname pword
+  localUser <- getUser uname
+  case (user, localUser) of
+      (Just u, Nothing) -> addUser uname u
+      _ -> return ()
+  if isJust user
     then do
       key <- newSession (SessionData uname)
       addCookie (sessionTimeout cfg) (mkCookie "sid" (show key))
@@ -396,11 +418,15 @@ registerUserForm = registerForm >>=
                     pgTitle = "Register for an account"
                     }
 
-formAuthHandlers :: [Handler]
-formAuthHandlers =
+registrationHandlers :: [Handler]
+registrationHandlers =
   [ dir "_register"  $ methodSP GET  registerUserForm
   , dir "_register"  $ methodSP POST $ withData registerUser
-  , dir "_login"     $ methodSP GET  loginUserForm
+  ]
+
+formAuthHandlers :: [Handler]
+formAuthHandlers =
+  [ dir "_login"     $ methodSP GET  loginUserForm
   , dir "_login"     $ methodSP POST $ withData loginUser
   , dir "_logout"    $ methodSP GET  $ withData logoutUser
   , dir "_resetPassword"   $ methodSP GET  $ withData resetPasswordRequestForm
@@ -422,3 +448,24 @@ httpAuthHandlers :: [Handler]
 httpAuthHandlers =
   [ dir "_logout" $ logoutUserHTTP
   , dir "_login"  $ withData loginUserHTTP ]
+
+authUserLdap :: String -> LDAPInt -> String -> String -> String -> GititServerPart (Maybe User)
+authUserLdap url port domain uname pword = do
+    let uname' = domain ++ "\\" ++ uname
+    ldap <- liftIO $ ldapInit url port
+    liftIO $ catchLDAP (do
+                            ldapSimpleBind ldap uname' pword
+                            user <- userFromLdap ldap uname
+                            return user)
+                       (\e -> do let err = show e
+                                 logM "gitit" WARNING $ "Exception during authenticating user " ++ uname' ++ ": " ++ err
+                                 return Nothing)
+    where userFromLdap ldap uname = do
+              entries <- ldapSearch ldap (Just "OU=Users,OU=Corporate,DC=wgenhq,DC=net") LdapScopeSubtree (Just $ "sAMAccountName="++uname) (LDAPAttrList ["mail"]) False
+              let mail = do
+                             entry <- listToMaybe entries
+                             mails <- lookup "mail" $ leattrs entry
+                             listToMaybe mails
+              case mail of
+                  Just mail' -> fmap Just $ mkUser uname mail' pword
+                  Nothing -> return Nothing

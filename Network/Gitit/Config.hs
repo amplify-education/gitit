@@ -27,8 +27,9 @@ where
 import Network.Gitit.Types
 import Network.Gitit.Server (mimeTypes)
 import Network.Gitit.Framework
-import Network.Gitit.Authentication (formAuthHandlers, httpAuthHandlers)
+import Network.Gitit.Authentication (formAuthHandlers, httpAuthHandlers, authUserLdap)
 import Network.Gitit.Util (parsePageType, readFileUTF8)
+import Network.Gitit.State (authUserLocal)
 import System.Log.Logger (logM, Priority(..))
 import qualified Data.Map as M
 import Data.ConfigFile hiding (readfile)
@@ -103,6 +104,11 @@ extractConfig cp = do
       cfPDFExport <- get cp "DEFAULT" "pdf-export"
       cfPandocUserData <- get cp "DEFAULT" "pandoc-user-data"
       cfCommitPrefix <- get cp "DEFAULT" "commit-prefix"
+      cfAuthBackend <- get cp "DEFAULT" "authentication-backend"
+      cfLdapUrl <- get cp "DEFAULT" "ldap-url"
+      cfLdapPort <- get cp "DEFAULT" "ldap-port"
+      cfLdapDomain <- get cp "DEFAULT" "ldap-domain"
+      cfAutoRegister <- get cp "DEFAULT" "auto-register"
       let (pt, lhs) = parsePageType cfDefaultPageType
       let markupHelpFile = show pt ++ if lhs then "+LHS" else ""
       markupHelpPath <- liftIO $ getDataFileName $ "data" </> "markupHelp" </> markupHelpFile
@@ -111,6 +117,7 @@ extractConfig cp = do
 
       mimeMap' <- liftIO $ readMimeTypesFile cfMimeTypesFile
       let authMethod = map toLower cfAuthenticationMethod
+      let authBackend = map toLower cfAuthBackend
       let stripTrailingSlash = reverse . dropWhile (=='/') . reverse
       let repotype' = case map toLower cfRepositoryType of
                         "git"       -> Git
@@ -138,6 +145,10 @@ extractConfig cp = do
                                       "form"     -> msum formAuthHandlers
                                       "http"     -> msum httpAuthHandlers
                                       _          -> mzero
+        , authBackend          = case authBackend of
+                                      "local"    -> authUserLocal
+                                      "ldap"     -> authUserLdap cfLdapUrl (read cfLdapPort) cfLdapDomain
+                                      _          -> error $ "Unknown authorization backend."
         , userFile             = cfUserFile
         , sessionTimeout       = readNumber "session-timeout" cfSessionTimeout * 60  -- convert minutes -> seconds
         , templatesDir         = cfTemplatesDir
@@ -182,6 +193,7 @@ extractConfig cp = do
                                     then Nothing
                                     else Just cfPandocUserData
         , commitPrefix         = cfCommitPrefix
+        , autoRegister         = cfAutoRegister
         }
   case config' of
         Left (ParseError e, e') -> error $ "Parse error: " ++ e ++ "\n" ++ e'

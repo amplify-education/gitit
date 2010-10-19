@@ -119,7 +119,7 @@ import Network.Gitit.State
         (getFileStore, getUser, getConfig, queryGititState, updateGititState)
 import Network.Gitit.ContentTransformer
 import Network.Gitit.Page
-import Network.Gitit.Authentication (loginUserForm)
+import Network.Gitit.Authentication (loginUserForm, registrationHandlers)
 import Paths_gitit (getDataFileName)
 import Control.Monad.Reader
 import Prelude hiding (readFile)
@@ -136,7 +136,7 @@ wiki conf = do
   -- directory, which contains defaults
   let staticHandler = withExpiresHeaders $
         fileServeStrict' [] static `mplus` fileServeStrict' [] defaultStatic
-  let handlers = [debugHandler | debugMode conf] ++ (authHandler conf : wikiHandlers)
+  let handlers = [debugHandler | debugMode conf] ++ (if autoRegister conf then [] else registrationHandlers) ++ (authHandler conf : wikiHandlers)
   let fs = filestoreFromConfig conf
   let ws = WikiState { wikiConfig = conf, wikiFileStore = fs }
   if compressResponses conf
