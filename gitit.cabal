@@ -100,7 +100,7 @@ Library
     exposed-modules: Network.Gitit.Interface
     build-depends:   ghc, ghc-paths
     cpp-options:     -D_PLUGINS
-  build-depends:     base >= 3, pandoc >= 1.6, filepath, safe, LDAP >= 0.6.6
+  build-depends:     base >= 3, pandoc >= 1.6, filepath, safe, LDAP >= 0.6.3
   extensions:        CPP
   if impl(ghc >= 6.12)
     ghc-options:     -Wall -fno-warn-unused-do-bind
