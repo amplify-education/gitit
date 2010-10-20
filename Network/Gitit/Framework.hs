@@ -344,14 +344,17 @@ withInput name val handler = do
 -- | Returns a filestore object derived from the
 -- repository path and filestore type specified in configuration.
 filestoreFromConfig :: Config -> FileStore
-filestoreFromConfig conf =
-  commitPrefixedFileStore (commitPrefix conf ++ " ")
-      $ subdirectoryFileStore (repositorySubdir conf)
-      $ baseFs
-  where baseFs = case repositoryType conf of
-         Git       -> gitFileStore       $ repositoryPath conf
-         Darcs     -> darcsFileStore     $ repositoryPath conf
-         Mercurial -> mercurialFileStore $ repositoryPath conf
+filestoreFromConfig conf = commitFs $ subdirFs $ baseFs
+  where commitFs = if not $ null $ commitPrefix conf
+            then commitPrefixedFileStore (commitPrefix conf ++ " ")
+            else id
+        subdirFs = if not $ null $ repositorySubdir conf
+            then subdirectoryFileStore (repositorySubdir conf)
+            else id
+        baseFs = case repositoryType conf of
+            Git       -> gitFileStore       $ repositoryPath conf
+            Darcs     -> darcsFileStore     $ repositoryPath conf
+            Mercurial -> mercurialFileStore $ repositoryPath conf
 
 -- | Converts a filestore to a filestore that only operates within
 -- a subdirectory
