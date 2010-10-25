@@ -52,7 +52,6 @@ import LDAP.Exceptions
 import LDAP.Search
 import Control.Monad
 import Data.Maybe
-import Debug.Trace
 
 data ValidationType = Register
                     | ResetPassword
