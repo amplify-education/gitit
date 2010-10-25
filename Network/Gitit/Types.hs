@@ -36,13 +36,14 @@ import Data.List (intersect)
 import Data.DateTime
 import Data.Maybe (fromMaybe)
 import Data.FileStore.Types
+import Data.FileStore.Git (Remote)
 import Network.Gitit.Server
 import Text.Pandoc.CharacterReferences (decodeCharacterReferences)
 
 data PageType = Markdown | RST | LaTeX | HTML
                 deriving (Read, Show, Eq)
 
-data FileStoreType = Git | Darcs | Mercurial deriving Show
+data FileStoreType = RemoteGit | Git | Darcs | Mercurial deriving Show
 
 data MathMethod = MathML | JsMathScript | WebTeX String | RawTeX
                   deriving (Read, Show, Eq)
@@ -55,6 +56,8 @@ data Config = Config {
   repositorySubdir     :: FilePath,
   -- | Type of repository
   repositoryType       :: FileStoreType,
+  -- | Information specifying what remote to use for the remote repositories
+  repositoryRemote     :: Remote,
   -- | Default page markup type for this wiki
   defaultPageType      :: PageType,
   -- | How to handle LaTeX math in pages?

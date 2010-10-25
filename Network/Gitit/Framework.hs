@@ -352,6 +352,7 @@ filestoreFromConfig conf = commitFs $ subdirFs $ baseFs
             then subdirectoryFileStore (repositorySubdir conf)
             else id
         baseFs = case repositoryType conf of
+            RemoteGit -> remoteGitFileStore (repositoryPath conf) (repositoryRemote conf)
             Git       -> gitFileStore       $ repositoryPath conf
             Darcs     -> darcsFileStore     $ repositoryPath conf
             Mercurial -> mercurialFileStore $ repositoryPath conf

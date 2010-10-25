@@ -50,6 +50,7 @@ main = do
                        Mercurial   -> "hg"
                        Darcs       -> "darcs"
                        Git         -> "git"
+                       RemoteGit   -> "git"
   let prereqs = ["grep", repoProg]
   forM_ prereqs $ \prog ->
     findExecutable prog >>= \mbFind ->

@@ -40,6 +40,7 @@ import Data.Char (toLower, toUpper, isDigit)
 import Paths_gitit (getDataFileName)
 import System.FilePath ((</>))
 import Text.Pandoc hiding (MathML, WebTeX)
+import Data.FileStore.Git (Remote(..))
 
 forceEither :: Show e => Either e a -> a
 forceEither = either (error . show) id
@@ -109,6 +110,9 @@ extractConfig cp = do
       cfLdapPort <- get cp "DEFAULT" "ldap-port"
       cfLdapDomain <- get cp "DEFAULT" "ldap-domain"
       cfAutoRegister <- get cp "DEFAULT" "auto-register"
+      cfRemoteName <- get cp "DEFAULT" "remote-name"
+      cfRemoteBranch <- get cp "DEFAULT" "remote-branch"
+      cfRemoteUrl <- get cp "DEFAULT" "remote-url"
       let (pt, lhs) = parsePageType cfDefaultPageType
       let markupHelpFile = show pt ++ if lhs then "+LHS" else ""
       markupHelpPath <- liftIO $ getDataFileName $ "data" </> "markupHelp" </> markupHelpFile
@@ -120,15 +124,18 @@ extractConfig cp = do
       let authBackend = map toLower cfAuthBackend
       let stripTrailingSlash = reverse . dropWhile (=='/') . reverse
       let repotype' = case map toLower cfRepositoryType of
-                        "git"       -> Git
-                        "darcs"     -> Darcs
-                        "mercurial" -> Mercurial
-                        x           -> error $ "Unknown repository type: " ++ x
+                        "remote-git" -> RemoteGit
+                        "git"        -> Git
+                        "darcs"      -> Darcs
+                        "mercurial"  -> Mercurial
+                        x            -> error $ "Unknown repository type: " ++ x
+      let remote = Remote cfRemoteName cfRemoteBranch cfRemoteUrl
 
       return $! Config{
           repositoryPath       = cfRepositoryPath
         , repositorySubdir     = cfRepositorySubdirectory
         , repositoryType       = repotype'
+        , repositoryRemote     = remote
         , defaultPageType      = pt
         , mathMethod           = case map toLower cfMathMethod of
                                       "jsmath"   -> JsMathScript
